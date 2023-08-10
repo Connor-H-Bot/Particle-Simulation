@@ -4,10 +4,11 @@ The purpose of this project is first to create efficient serial code in C, and t
 
 # Usage
 To run, compile any of the programs by navigating to their file and running the makefile:
+Once inside the directory of the desired program (either using one of the two parallel versions, or the serial) and compile it by running:
 ```
 Make
 ```
-After which the program becomes an executeable that can be ran as so: (using GCC)
+This will compile the code using the -Ofast flag (most aggressivle optimisations) and compiler warnings. This will compile using GCC. Afterwards, the executeable file can be ran using:
 
 ```
 ./galsim number_of_stars filename.gal number_of_timesteps delta_time graphics 
@@ -36,16 +37,27 @@ The timing function is in the final 3 lines of the program, so change these from
 ```
 
 # Equations used:
-In order to update the position for a single particle, its force (relative to every other particle!) needs to be calculated, and afterwards the velocity can be calculated, which is then used to update the position. 
+In the galaxy simulation, the dynamic behavior of a single particle relies on an intricate process of calculating the gravitational interactions with every other particle. This calculation enables us to update the particle's position using the following sequence of steps:
 
-Starting with the Netwons law of gravitation in two dimensions, the force on particle i relative to j (denoted as a function F(i, j)) can be calculated as:
+1. **Calculate the Force on a Particle**: Start with Newton's law of gravitation in two dimensions to compute the force on particle `i` relative to `j`, represented as a function `F(i, j)`:
 _Force(i) = -gravity * mass(i) * summation(mass(j) / (distance(i, j) + plummer_sphere)^3 * vector(i, j))_
 
-Which is then used to calculate accelleration on each particle:
+
+2. **Compute Acceleration**: Divide the force by the mass of each particle to find the acceleration:
 _Force(i) / Mass(i)_
 
-And after calculating the accelleration on all particles, the following equation is used to calculate the velocity:
+
+3. **Update Velocity**: With the acceleration calculated, you can then compute the new velocity for each particle using:
 _Velocity(i) + Delta time * Acceleration(i)_
 
-Which can finally be used to update the position of i using:
+
+4. **Update Position**: Finally, the newly calculated velocity is used to update the position of particle `i` by:
 _Position(i) + Delta Time * Velocity(i)_
+
+
+
+This sequence of equations brings a particle to life in the simulation, allowing it to move and interact in a manner that adheres to the principles of physics. By following these equations, the simulation provides a portrayal of the forces at work in a galaxy, showing how every particle's motion is influenced by the cumulative effect of the gravitational force exerted by all other particles.
+
+
+# Issues:
+This version of the code has not been implemented with the graphic display features, so the "graphics" setting should always be set to "0". 
