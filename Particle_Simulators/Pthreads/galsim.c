@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <sys/time.h>
 
+// Structure to hold data for each thread
 struct thread_data {
     int start_index;
     int end_index;
@@ -16,38 +17,58 @@ struct thread_data {
     pthread_barrier_t *barrier;
 };
 
-double plummer_sphere = 1e-3; // Plummer sphere as a part of the force calculation. 
-int time_steps = 0;
-
 // Structure for each individual particle
 struct particle {
     double position_x, position_y, mass, velocity_x, velocity_y, brightness, accel_x, accel_y; 
 };
 
-// Function Declarations
+// Globals
+double plummer_sphere = 1e-3;  
+int time_steps = 0;
+
+// Function Prototypes
 int main(int argc, char const *argv[]);
 double force(struct particle* pointer_1, char axis, struct particle* pointer_2, int star_count, double gravity);
 double distance(struct particle* pointer_1, struct particle* pointer_2);
 double vector(struct particle* pointer_1, struct particle* pointer_2, char axis);
 
-// Calculate force on a particle. Equation: Force(i) = -gravity * mass(i) * sum(mass(j) / (distance(i, j) + plummer_sphere)^3 * vector(i, j))
+/* 
+ * Calculate force on a particle based on gravitational pull.
+ * 
+ * Pre: `pointer_1` and `pointer_2` are valid pointers to particle structures.
+ *      `axis` is either 'x' or 'y' representing the dimension.
+ *      `star_count` is the number of stars in the simulation.
+ *      `gravity` is a positive value for gravitational constant.
+ * Post: Returns the calculated force on the particle.
+ */
 double force(struct particle* pointer_1, char axis, struct particle* pointer_2, int star_count, double gravity) {
     double summation = 0.0;
     for (int i = 0; i < star_count; i++) { 
         if (pointer_1 != pointer_2) {
-            summation += ((pointer_2->mass) / pow((distance(pointer_1, pointer_2) + plummer_sphere), 3.0)) * vector(pointer_1, pointer_2, axis);
+            summation += (pointer_2->mass / pow(distance(pointer_1, pointer_2) + plummer_sphere, 3.0)) * vector(pointer_1, pointer_2, axis);
         }
         pointer_2++;
     }
     return (-gravity * pointer_1->mass * summation);
 }
 
-// Calculate the distance of two points. Distance = Sqrt((x2 - x1)^2 + (y2-y1)^2)
+/* 
+ * Calculate the Euclidean distance between two particles.
+ * 
+ * Pre: `pointer_1` and `pointer_2` are valid pointers to particle structures.
+ * Post: Returns the distance between the two particles.
+ */
 double distance(struct particle* pointer_1, struct particle* pointer_2) {
-    return sqrt(pow((pointer_2->position_x - pointer_1->position_x), 2.0) + pow((pointer_2->position_y - pointer_1->position_y), 2.0));
+    return sqrt(pow(pointer_2->position_x - pointer_1->position_x, 2.0) + pow(pointer_2->position_y - pointer_1->position_y, 2.0));
 }
 
-// Calculate the vector of point A relative to point B in its respective axis. Vector = (x1 - x2, y1 - y2)
+/* 
+ * Calculate the vector between two particles in the specified dimension.
+ * 
+ * Pre: `pointer_1` and `pointer_2` are valid pointers to particle structures.
+ *      `axis` is either 'x' or 'y' representing the dimension.
+ * Post: Returns the vector value for the specified dimension.
+ */
 double vector(struct particle* pointer_1, struct particle* pointer_2, char axis){
     if (axis == 'x') {
         return (pointer_1->position_x - pointer_2->position_x);
@@ -57,53 +78,48 @@ double vector(struct particle* pointer_1, struct particle* pointer_2, char axis)
     }
 }
 
+/* 
+ * Thread function to calculate particle properties.
+ * 
+ * Pre: `threadarg` is a valid pointer to `thread_data` structure.
+ * Post: Updates the particle properties after simulating their motion for given time steps.
+ */
 void *calculate_particles(void *threadarg) {
     struct thread_data *data;
     data = (struct thread_data *) threadarg;
-    struct particle *pointer_1 = &data->all_particles[data->start_index];
-    struct particle *pointer_2 = data->all_particles;
-    int star_count = data->star_count;
-    int start_index = data->start_index;
-    int end_index = data->end_index;
-    double delta_time = data->delta_time;
-    double gravity = data->gravity;
-    pthread_barrier_t *barrier = data->barrier;
-
-    // Repeat this process for the number of time steps
+    
     for (int step_iteration = 0; step_iteration < time_steps; step_iteration++) {
-        for (int index = start_index; index < end_index; index++) {
-            data->all_particles[index].accel_x = (force(pointer_1, 'x', pointer_2, star_count, gravity) / data->all_particles[index].mass);
-            data->all_particles[index].accel_y = (force(pointer_1, 'y', pointer_2, star_count, gravity) / data->all_particles[index].mass);
-            pointer_1++;
-        }
-        pointer_1 = &data->all_particles[data->start_index]; // Reset this pointer for the next loop
-
-        // Wait for all threads to finish calculating acceleration
-        pthread_barrier_wait(barrier);
-
-        for (int index = start_index; index < end_index; index++) {
-            // Calculate velocity
-            data->all_particles[index].velocity_x += (delta_time * data->all_particles[index].accel_x);
-            data->all_particles[index].velocity_y += (delta_time * data->all_particles[index].accel_y);
-
-            // Update position
-            data->all_particles[index].position_x += (delta_time * data->all_particles[index].velocity_x);
-            data->all_particles[index].position_y += (delta_time * data->all_particles[index].velocity_y);
+        for (int index = data->start_index; index < data->end_index; index++) {
+            struct particle *current_particle = &data->all_particles[index];
+            current_particle->accel_x = force(current_particle, 'x', data->all_particles, data->star_count, data->gravity) / current_particle->mass;
+            current_particle->accel_y = force(current_particle, 'y', data->all_particles, data->star_count, data->gravity) / current_particle->mass;
         }
 
-        // Wait for all threads to finish updating positions
-        pthread_barrier_wait(barrier);
+        pthread_barrier_wait(data->barrier);
+
+        for (int index = data->start_index; index < data->end_index; index++) {
+            struct particle *current_particle = &data->all_particles[index];
+            current_particle->velocity_x += (data->delta_time * current_particle->accel_x);
+            current_particle->velocity_y += (data->delta_time * current_particle->accel_y);
+            current_particle->position_x += (data->delta_time * current_particle->velocity_x);
+            current_particle->position_y += (data->delta_time * current_particle->velocity_y);
+        }
+
+        pthread_barrier_wait(data->barrier);
     }
 
     pthread_exit(NULL);
 }
 
-// Wall time for timing func
+/* 
+ * Get current wall time in seconds.
+ * 
+ * Post: Returns the current wall time in seconds.
+ */
 double get_wall_seconds() {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    double seconds = tv.tv_sec + (double)tv.tv_usec / 1000000;
-    return seconds;
+    return tv.tv_sec + (double)tv.tv_usec / 1000000;
 }
 
 // Main function
