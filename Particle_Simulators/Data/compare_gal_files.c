@@ -1,3 +1,4 @@
+// Credit: All content in the owner file "Data" is intellectual property of the UU HPPC (Uppsala Uni, high performance computing) course. 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
